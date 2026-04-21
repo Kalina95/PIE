@@ -4,6 +4,18 @@ System helpdesk w przeglądarce: zgłoszenia (tickety), role (Admin / Agent / Us
 
 ---
 
+## Wnioski
+
+Wykonano **7 z 8 tutoriali**. Kolejka (RabbitMQ) została wystawiona jako **osobny serwis** (`tools/HelpDeskHero.TicketQueueWorker`) — główna aplikacja helpdesk działa niezależnie i nie wymaga jej do działania.
+
+- C# + .NET w porównaniu do Java + Spring Boot wydaje się prostszy w modularyzacji aplikacji.
+- .NET jest bardziej zamkniętym ekosystemem; Spring Boot daje większą dowolność w doborze narzędzi.
+- Visual Studio jest mało czytelne — szybko przeszedłem na **JetBrains Rider**.
+- Projekt mógłby zostać podzielony na mikroserwisy — wydzielenie serwisu użytkowników pozwoliłoby na łatwiejszą migrację do dojrzalszych rozwiązań (np. Keycloak) i zapobiegałoby zabrudzeniu encji `User` logiką biznesową.
+- Bardzo czytelna definicja kontrolerów w ASP.NET Core i ich parametryzacja przez atrybuty.
+
+---
+
 ## Stos technologiczny
 
 | Warstwa | Technologia |
