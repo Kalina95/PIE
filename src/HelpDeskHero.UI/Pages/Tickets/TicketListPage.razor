@@ -1,0 +1,298 @@
+@page "/tickets"
+@attribute [Authorize]
+
+@using HelpDeskHero.Shared.Contracts.Common
+@using HelpDeskHero.Shared.Contracts.Tickets
+@using HelpDeskHero.UI.Components.Shared
+@using HelpDeskHero.UI.Services.Realtime
+@inject HelpDeskHero.UI.Services.Api.ITicketApiClient TicketApi
+@inject ITicketsRealtimeClient Realtime
+@inject Microsoft.JSInterop.IJSRuntime Js
+@implements IDisposable
+
+<PageTitle>Zgłoszenia</PageTitle>
+
+<div class="tickets-page">
+    <header class="tickets-page-header mb-4">
+        <h1 class="h3 mb-1">Zgłoszenia</h1>
+        <p class="text-secondary small mb-0">Przeglądaj i filtruj zgłoszenia w jednym miejscu.</p>
+    </header>
+
+    <div class="tickets-toolbar rounded-3 bg-light p-3 p-md-4 mb-4">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-lg-4">
+                <label class="form-label small text-secondary mb-1">Szukaj</label>
+                <InputText class="form-control" @bind-Value="_query.Search" placeholder="Numer, tytuł, opis…" />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small text-secondary mb-1">Status</label>
+                <InputSelect class="form-select" @bind-Value="_query.Status">
+                    <option value="">Wszystkie</option>
+                    <option value="New">Nowe</option>
+                    <option value="InProgress">W toku</option>
+                    <option value="Resolved">Rozwiązane</option>
+                    <option value="Closed">Zamknięte</option>
+                </InputSelect>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small text-secondary mb-1">Priorytet</label>
+                <InputSelect class="form-select" @bind-Value="_query.Priority">
+                    <option value="">Wszystkie</option>
+                    <option value="Low">Niski</option>
+                    <option value="Medium">Średni</option>
+                    <option value="High">Wysoki</option>
+                    <option value="Critical">Krytyczny</option>
+                </InputSelect>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+                <button class="btn btn-primary w-100" type="button" @onclick="ReloadAsync">Zastosuj filtry</button>
+            </div>
+            <AuthorizeView Policy="CanManageTickets">
+                <Authorized>
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <button class="btn btn-outline-secondary w-100" type="button" @onclick="ExportCsvAsync" title="Pobierz plik CSV">
+                            Eksport CSV
+                        </button>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @if (_result is null)
+    {
+        <div class="d-flex align-items-center gap-2 text-secondary py-5">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Ładowanie listy…</span>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-3">
+            <p class="text-secondary small mb-0">
+                Łącznie: <strong class="text-body">@_result.TotalCount</strong>
+                @if (_totalPages > 1)
+                {
+                    <span class="text-muted">· strona @_query.PageNumber z @_totalPages</span>
+                }
+            </p>
+        </div>
+
+        @if (_result.Items.Count == 0)
+        {
+            <div class="rounded-3 border border-light bg-white p-5 text-center text-secondary">
+                <p class="mb-1 fw-medium text-body">Brak zgłoszeń</p>
+                <p class="small mb-0">Zmień filtry albo dodaj nowe zgłoszenie (jeśli masz uprawnienia).</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive rounded-3 border border-light shadow-sm">
+                <table class="table table-hover align-middle mb-0 tickets-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col" class="text-secondary small fw-semibold">Nr</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Tytuł</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Status</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Priorytet</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Przypisany</th>
+                            <th scope="col" class="text-secondary small fw-semibold">SLA (rozwiązanie)</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Eskalacja</th>
+                            <th scope="col" class="text-secondary small fw-semibold">Utworzono</th>
+                            <th scope="col" class="text-end text-secondary small fw-semibold"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _result.Items)
+                        {
+                            <tr>
+                                <td class="text-nowrap text-secondary small">@item.Number</td>
+                                <td>
+                                    <a class="text-decoration-none fw-medium" href="@($"/tickets/{item.Id}")">@item.Title</a>
+                                </td>
+                                <td><StatusBadge Status="@item.Status" /></td>
+                                <td><PriorityBadge Priority="@item.Priority" /></td>
+                                <td class="small">
+                                    @if (!string.IsNullOrWhiteSpace(item.AssignedToDisplayName))
+                                    {
+                                        <span>@item.AssignedToDisplayName</span>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(item.AssignedToUserId))
+                                    {
+                                        <span class="text-muted">@item.AssignedToUserId</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="small">
+                                    @if (item.DueResolveAtUtc is { } due)
+                                    {
+                                        <span class="text-nowrap">@due.ToLocalTime().ToString("g")</span>
+                                        @if (IsSlaBreached(item))
+                                        {
+                                            <span class="badge text-bg-danger ms-1">po terminie</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="small text-nowrap">
+                                    @if (item.EscalationLevel > 0)
+                                    {
+                                        <span class="badge text-bg-warning text-dark">@item.EscalationLevel</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">0</span>
+                                    }
+                                </td>
+                                <td class="text-nowrap small text-secondary">@item.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                                <td class="text-end">
+                                    <AuthorizeView Policy="CanManageTickets">
+                                        <Authorized>
+                                            <button class="btn btn-sm btn-link link-danger text-decoration-none p-0" type="button" @onclick="() => DeleteAsync(item.Id)">Usuń</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (_result.TotalCount > 0)
+        {
+            <nav class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4" aria-label="Paginacja">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_query.PageNumber <= 1)" @onclick="PrevAsync">
+                        ← Poprzednia
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                            disabled="@((_query.PageNumber * _query.PageSize) >= _result.TotalCount)"
+                            @onclick="NextAsync">
+                        Następna →
+                    </button>
+                </div>
+                <span class="small text-secondary">Strona @_query.PageNumber z @_totalPages</span>
+            </nav>
+        }
+    }
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger mt-3" role="alert">@_error</div>
+}
+
+@code {
+    private TicketQueryDto _query = new();
+    private PagedResultDto<TicketDto>? _result;
+    private string? _error;
+
+    private int _totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.TicketChanged += OnTicketLiveChangedAsync;
+        await Realtime.EnsureConnectedAsync();
+        await Realtime.JoinDashboardAsync();
+        await ReloadAsync();
+    }
+
+    public void Dispose()
+    {
+        Realtime.TicketChanged -= OnTicketLiveChangedAsync;
+    }
+
+    private async Task OnTicketLiveChangedAsync(TicketLiveUpdateDto _)
+    {
+        await InvokeAsync(async () =>
+        {
+            await ReloadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private static bool IsSlaBreached(TicketDto item)
+    {
+        if (item.DueResolveAtUtc is not { } due)
+            return false;
+        if (item.Status is "Resolved" or "Closed")
+            return false;
+        return due < DateTime.UtcNow;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _error = null;
+        _result = await TicketApi.GetPageAsync(_query);
+        if (_result is null)
+        {
+            _error = "Nie udało się wczytać listy zgłoszeń.";
+            return;
+        }
+
+        _totalPages = _result.TotalCount <= 0
+            ? 1
+            : Math.Max(1, (int)Math.Ceiling(_result.TotalCount / (double)_query.PageSize));
+    }
+
+    private async Task PrevAsync()
+    {
+        if (_query.PageNumber > 1)
+        {
+            _query.PageNumber--;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_result is null || (_query.PageNumber * _query.PageSize) >= _result.TotalCount)
+            return;
+
+        _query.PageNumber++;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        _error = null;
+        var response = await TicketApi.DeleteAsync(id);
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Nie udało się usunąć zgłoszenia.";
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        _error = null;
+        try
+        {
+            var response = await TicketApi.ExportCsvAsync(_query.Status, _query.Priority);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Nie udało się wyeksportować pliku CSV.";
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"tickets-{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
+            await Js.InvokeVoidAsync("helpDeskHeroDownload", fileName, "text/csv", base64);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

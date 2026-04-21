@@ -1,0 +1,21 @@
+.tickets-page {
+    max-width: 1200px;
+}
+
+.tickets-toolbar {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.tickets-table thead th {
+    border-bottom-width: 1px;
+}
+
+.tickets-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.tickets-table td,
+.tickets-table th {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}

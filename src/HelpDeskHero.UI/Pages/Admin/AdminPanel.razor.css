@@ -1,0 +1,23 @@
+.admin-page {
+    max-width: 960px;
+}
+
+.admin-tile {
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.admin-tile-link:hover .admin-tile,
+.admin-tile-link:focus-visible .admin-tile {
+    background-color: #fff !important;
+    border-color: rgba(13, 110, 253, 0.25) !important;
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.06);
+}
+
+.admin-tile-link:focus-visible {
+    outline: none;
+}
+
+.admin-tile-link:focus-visible .admin-tile {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}

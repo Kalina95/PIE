@@ -1,0 +1,75 @@
+@page "/admin"
+@attribute [Authorize(Policy = "CanViewAudit")]
+@using Microsoft.Extensions.Configuration
+@inject IConfiguration Configuration
+
+<PageTitle>Panel administratora</PageTitle>
+
+<div class="admin-page">
+    <header class="mb-4">
+        <h1 class="h3 mb-2">Panel administratora</h1>
+        <p class="text-secondary mb-0">
+            Skróty do narzędzi administracyjnych. Żądania do API są dodatkowo weryfikowane (np. polityka <span class="font-monospace small">CanViewAudit</span>).
+        </p>
+    </header>
+
+    <div class="row g-3">
+        <div class="col-12 col-md-6 col-xl-4">
+            <NavLink class="admin-tile-link text-decoration-none" href="admin/audit">
+                <div class="admin-tile rounded-3 border border-light bg-light p-4 h-100">
+                    <h2 class="h6 text-body mb-2">Audyt zdarzeń</h2>
+                    <p class="small text-secondary mb-0">
+                        Podgląd zapisanych operacji (kto, co, kiedy). Pełna lista i filtry na osobnej stronie.
+                    </p>
+                    <span class="admin-tile-arrow mt-3 d-inline-block small text-primary">Otwórz audyt →</span>
+                </div>
+            </NavLink>
+        </div>
+        <div class="col-12 col-md-6 col-xl-4">
+            <NavLink class="admin-tile-link text-decoration-none" href="dashboard">
+                <div class="admin-tile rounded-3 border border-light bg-light p-4 h-100">
+                    <h2 class="h6 text-body mb-2">Pulpit</h2>
+                    <p class="small text-secondary mb-0">
+                        Podsumowanie zgłoszeń i ostatnie wpisy audytu w jednym widoku.
+                    </p>
+                    <span class="admin-tile-arrow mt-3 d-inline-block small text-primary">Przejdź do pulpitu →</span>
+                </div>
+            </NavLink>
+        </div>
+        <div class="col-12 col-md-6 col-xl-4">
+            <NavLink class="admin-tile-link text-decoration-none" href="tickets">
+                <div class="admin-tile rounded-3 border border-light bg-light p-4 h-100">
+                    <h2 class="h6 text-body mb-2">Zgłoszenia</h2>
+                    <p class="small text-secondary mb-0">
+                        Lista wszystkich ticketów — filtrowanie, eksport CSV (przy odpowiednich uprawnieniach).
+                    </p>
+                    <span class="admin-tile-arrow mt-3 d-inline-block small text-primary">Lista zgłoszeń →</span>
+                </div>
+            </NavLink>
+        </div>
+        <div class="col-12 col-md-6 col-xl-4">
+            <a class="admin-tile-link text-decoration-none" href="@HangfireUrl" target="_blank" rel="noopener noreferrer">
+                <div class="admin-tile rounded-3 border border-light bg-light p-4 h-100">
+                    <h2 class="h6 text-body mb-2">Hangfire</h2>
+                    <p class="small text-secondary mb-0">
+                        Panel kolejek i zadań w tle na serwerze API (adres z <span class="font-monospace small">Api:BaseUrl</span>).
+                    </p>
+                    <span class="admin-tile-arrow mt-3 d-inline-block small text-primary">Otwórz w nowej karcie →</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string HangfireUrl
+    {
+        get
+        {
+            var baseUrl = Configuration["Api:BaseUrl"];
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                return "#";
+            return new Uri(new Uri(baseUrl.TrimEnd('/'), UriKind.Absolute), "hangfire").ToString();
+        }
+    }
+}

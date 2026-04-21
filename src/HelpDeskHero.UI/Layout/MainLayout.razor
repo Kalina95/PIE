@@ -1,0 +1,58 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<div class="page">
+    @if (_routeLoading)
+    {
+        <div class="route-progress-track" aria-busy="true" aria-label="Ładowanie strony"></div>
+    }
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private bool _routeLoading;
+    private IDisposable? _locationChangingRegistration;
+
+    protected override void OnInitialized()
+    {
+        _locationChangingRegistration = NavigationManager.RegisterLocationChangingHandler(OnLocationChanging);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _routeLoading = false;
+            StateHasChanged();
+        });
+    }
+
+    private async ValueTask OnLocationChanging(LocationChangingContext context)
+    {
+        await InvokeAsync(() =>
+        {
+            _routeLoading = true;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        _locationChangingRegistration?.Dispose();
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

@@ -1,0 +1,23 @@
+<span class="badge @GetCssClass(Status)">@GetLabel(Status)</span>
+
+@code {
+    [Parameter] public string Status { get; set; } = "New";
+
+    private static string GetLabel(string status) => status switch
+    {
+        "New" => "Nowe",
+        "InProgress" => "W toku",
+        "Resolved" => "Rozwiązane",
+        "Closed" => "Zamknięte",
+        _ => status
+    };
+
+    private static string GetCssClass(string status) => status switch
+    {
+        "New" => "bg-secondary",
+        "InProgress" => "bg-primary",
+        "Resolved" => "bg-success",
+        "Closed" => "bg-dark",
+        _ => "bg-light text-dark"
+    };
+}

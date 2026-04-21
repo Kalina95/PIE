@@ -1,0 +1,100 @@
+@page "/dashboard"
+@attribute [Authorize]
+@using HelpDeskHero.Shared.Contracts.Dashboard
+@inject HelpDeskHero.UI.Services.Api.DashboardApiClient DashboardApi
+
+<PageTitle>Pulpit</PageTitle>
+
+<h3>Pulpit</h3>
+
+@if (_model is null)
+{
+    <p>Ładowanie...</p>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="text-secondary small">Łącznie</div>
+            <div class="fs-4 fw-semibold">@_model.TotalTickets</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-secondary small">Otwarte</div>
+            <div class="fs-4 fw-semibold">@_model.OpenTickets</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-secondary small">Zamknięte</div>
+            <div class="fs-4 fw-semibold">@_model.ClosedTickets</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-secondary small">Usunięte</div>
+            <div class="fs-4 fw-semibold">@_model.DeletedTickets</div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="text-secondary small">Wysoki priorytet (otwarte)</div>
+            <div class="fs-4 fw-semibold">@_model.HighPriorityOpenTickets</div>
+        </div>
+    </div>
+
+    <h5 class="mt-4 mb-3">Ostatni audyt</h5>
+    <table class="table table-sm table-borderless">
+        <thead>
+            <tr class="border-bottom">
+                <th class="text-secondary fw-normal small">Kiedy</th>
+                <th class="text-secondary fw-normal small">Akcja</th>
+                <th class="text-secondary fw-normal small">Obiekt</th>
+                <th class="text-secondary fw-normal small">Użytkownik</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _model.RecentAuditItems)
+            {
+                <tr>
+                    <td>@item.CreatedAtUtc.ToString("u")</td>
+                    <td>@item.Action</td>
+                    <td>@item.EntityName</td>
+                    <td>@item.PerformedBy</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@implements IAsyncDisposable
+
+@code {
+    private DashboardSummaryDto? _model;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        await LoadAsync(_cts.Token);
+        _ = RefreshLoopAsync(_cts.Token);
+    }
+
+    private async Task LoadAsync(CancellationToken ct)
+    {
+        _model = await DashboardApi.GetSummaryAsync(ct);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        while (!ct.IsCancellationRequested && await timer.WaitForNextTickAsync(ct))
+        {
+            await LoadAsync(ct);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

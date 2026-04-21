@@ -1,0 +1,134 @@
+﻿@using HelpDeskHero.Shared.Contracts.Tickets
+@using HelpDeskHero.UI.Services
+@using HelpDeskHero.UI.Services.Realtime
+
+<div class="top-row ps-3 navbar navbar-light border-bottom border-light-subtle">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">HelpDeskHero</a>
+    </div>
+</div>
+
+<div class="nav-scrollable">
+    <nav class="flex-column">
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="dashboard">Pulpit</NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="tickets">Zgłoszenia</NavLink>
+                </div>
+
+                <AuthorizeView Policy="CanManageTickets" Context="navCreate">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="tickets/create">Nowe zgłoszenie</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="tickets/deleted">Kosz</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="account/security">Bezpieczeństwo konta</NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="notifications">
+                        Powiadomienia
+                        @if (UnreadState.UnreadCount > 0)
+                        {
+                            <span class="badge bg-danger ms-2">@UnreadState.UnreadCount</span>
+                        }
+                    </NavLink>
+                </div>
+
+                <AuthorizeView Roles="Admin" Context="navAdmin">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin">Panel administratora</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/audit">Audyt zdarzeń</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="logout">Wyloguj</NavLink>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="login">Logowanie</NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@implements IDisposable
+
+@code {
+    [Inject] private NotificationUnreadState UnreadState { get; set; } = default!;
+    [Inject] private ITicketsRealtimeClient Realtime { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        UnreadState.Changed += OnUnreadChanged;
+        Realtime.TicketChanged += OnTicketChangedRealtimeAsync;
+    }
+
+    /// <summary>
+    /// Odświeżanie po pierwszym renderze — unika wywołań StateHasChanged w trakcie inicjalizacji rodzeństwa (np. strony powiadomień).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await UnreadState.RefreshAsync();
+                await Realtime.EnsureConnectedAsync();
+                await Realtime.JoinDashboardAsync();
+            }
+            catch
+            {
+                // Nie blokuj menu przy błędzie API (np. brak sieci).
+            }
+        }
+    }
+
+    private void OnUnreadChanged() => InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Nowe powiadomienia in-app tworzą się często w tle (Hangfire) po zdarzeniach ticketów — po każdym pushu z hubu odświeżamy licznik.
+    /// Drugie odświeżenie po ~1,5 s łapie wpisy zapisane tuż po evencie SignalR.
+    /// </summary>
+    private async Task OnTicketChangedRealtimeAsync(TicketLiveUpdateDto _)
+    {
+        try
+        {
+            await UnreadState.RefreshAsync();
+        }
+        catch
+        {
+            // Ignoruj błędy sieci — nie psuj hubu.
+        }
+
+        try
+        {
+            await Task.Delay(1500);
+            await UnreadState.RefreshAsync();
+        }
+        catch
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        UnreadState.Changed -= OnUnreadChanged;
+        Realtime.TicketChanged -= OnTicketChangedRealtimeAsync;
+    }
+}

@@ -1,0 +1,105 @@
+/* —— Pierwsze ładowanie WASM (do momentu startu Blazora) —— */
+#app {
+    position: relative;
+    min-height: 100vh;
+}
+
+#app .app-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    background: #f8f9fa;
+    color: #495057;
+}
+
+#app .app-loading-spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 3px solid #dee2e6;
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    animation: app-spin 0.75s linear infinite;
+}
+
+#app .app-loading-text {
+    margin-top: 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* Ukryj domyślne koła SVG szablonu, jeśli nadal są w DOM */
+#app .loading-progress {
+    display: none;
+}
+
+#app .loading-progress-text {
+    display: none;
+}
+
+@keyframes app-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* —— Globalny pasek błędu Blazora (runtime ustawia display, np. flex) —— */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100000;
+    padding: 0.875rem 1.25rem;
+    background: #fff;
+    border-top: 1px solid #f1aeb5;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+    font-size: 0.9rem;
+    color: #842029;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+#blazor-error-ui .blazor-error-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+#blazor-error-ui .blazor-error-title {
+    font-weight: 600;
+    color: #58151c;
+}
+
+#blazor-error-ui .reload {
+    color: #0d6efd;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+#blazor-error-ui .reload:hover {
+    text-decoration: underline;
+}
+
+#blazor-error-ui .dismiss {
+    margin-left: auto;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    font-size: 1.1rem;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+#blazor-error-ui .dismiss:hover {
+    background: #f8f9fa;
+    color: #212529;
+}

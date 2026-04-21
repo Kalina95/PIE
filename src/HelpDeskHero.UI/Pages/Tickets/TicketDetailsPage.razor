@@ -1,0 +1,159 @@
+﻿@page "/tickets/{Id:int}"
+@attribute [Authorize]
+@using HelpDeskHero.Shared.Contracts.Tickets
+@using HelpDeskHero.UI.Components.Shared
+@using HelpDeskHero.UI.Services.Realtime
+@inject HelpDeskHero.UI.Services.Api.ITicketApiClient TicketApi
+@inject ITicketsRealtimeClient Realtime
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>Szczegóły</PageTitle>
+
+<h3>Szczegóły zgłoszenia</h3>
+
+@if (_ticket is null && !_done)
+{
+    <Loading />
+}
+else if (_ticket is null)
+{
+    <p>Nie znaleziono zgłoszenia.</p>
+}
+else
+{
+    <p><strong>Numer:</strong> @_ticket.Number</p>
+    <p><strong>Tytuł:</strong> @_ticket.Title</p>
+    <p><strong>Status:</strong> <StatusBadge Status="@_ticket.Status" /></p>
+    <p><strong>Priorytet:</strong> <PriorityBadge Priority="@_ticket.Priority" /></p>
+    <p><strong>Przypisany:</strong>
+        @if (!string.IsNullOrWhiteSpace(_ticket.AssignedToDisplayName))
+        {
+            <span>@_ticket.AssignedToDisplayName</span>
+        }
+        else if (!string.IsNullOrWhiteSpace(_ticket.AssignedToUserId))
+        {
+            <span class="text-muted">@_ticket.AssignedToUserId</span>
+        }
+        else
+        {
+            <span class="text-muted">brak</span>
+        }
+    </p>
+    <p><strong>SLA — pierwsza odpowiedź do:</strong>
+        @if (_ticket.DueFirstResponseAtUtc is { } d1)
+        {
+            <span>@d1.ToLocalTime().ToString("g")</span>
+        }
+        else
+        {
+            <span class="text-muted">—</span>
+        }
+    </p>
+    <p><strong>SLA — rozwiązanie do:</strong>
+        @if (_ticket.DueResolveAtUtc is { } d2)
+        {
+            <span>@d2.ToLocalTime().ToString("g")</span>
+            @if (IsSlaBreached(_ticket))
+            {
+                <span class="badge text-bg-danger ms-2">po terminie</span>
+            }
+        }
+        else
+        {
+            <span class="text-muted">—</span>
+        }
+    </p>
+    <p><strong>Eskalacja:</strong>
+        @if (_ticket.EscalationLevel > 0)
+        {
+            <span class="badge text-bg-warning text-dark">Poziom @_ticket.EscalationLevel</span>
+        }
+        else
+        {
+            <span class="text-muted">brak</span>
+        }
+    </p>
+    <p><strong>Opis:</strong> @_ticket.Description</p>
+    <p><strong>Utworzono (UTC):</strong> @_ticket.CreatedAtUtc</p>
+    @if (_ticket.UpdatedAtUtc is not null)
+    {
+        <p><strong>Zaktualizowano (UTC):</strong> @_ticket.UpdatedAtUtc</p>
+    }
+
+    <AuthorizeView Policy="CanManageTickets">
+        <Authorized>
+            <button class="btn btn-primary" type="button" @onclick='() => Nav.NavigateTo($"/tickets/edit/{Id}")'>Edytuj</button>
+        </Authorized>
+    </AuthorizeView>
+
+    <hr />
+    <h5>Komentarze</h5>
+    <TicketComments TicketId="@Id" />
+
+    <hr />
+    <h5>Załączniki</h5>
+    <TicketAttachments TicketId="@Id" />
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private TicketDto? _ticket;
+    private bool _done;
+    private int _hubJoinedForId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _done = false;
+        _ticket = await TicketApi.GetByIdAsync(Id);
+        _done = true;
+
+        if (_hubJoinedForId != 0 && _hubJoinedForId != Id)
+        {
+            await Realtime.LeaveTicketAsync(_hubJoinedForId);
+            await Realtime.EnsureConnectedAsync();
+            await Realtime.JoinTicketAsync(Id);
+            _hubJoinedForId = Id;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Realtime.TicketChanged += OnTicketLiveChangedAsync;
+            await Realtime.EnsureConnectedAsync();
+            await Realtime.JoinTicketAsync(Id);
+            _hubJoinedForId = Id;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Realtime.TicketChanged -= OnTicketLiveChangedAsync;
+        if (_hubJoinedForId != 0)
+            await Realtime.LeaveTicketAsync(_hubJoinedForId);
+    }
+
+    private Task OnTicketLiveChangedAsync(TicketLiveUpdateDto dto)
+    {
+        if (dto.TicketId != Id)
+            return Task.CompletedTask;
+
+        return InvokeAsync(async () =>
+        {
+            _ticket = await TicketApi.GetByIdAsync(Id);
+            StateHasChanged();
+        });
+    }
+
+    private static bool IsSlaBreached(TicketDto item)
+    {
+        if (item.DueResolveAtUtc is not { } due)
+            return false;
+        if (item.Status is "Resolved" or "Closed")
+            return false;
+        return due < DateTime.UtcNow;
+    }
+}
