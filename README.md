@@ -172,3 +172,9 @@ Jeśli przeglądarka zgłasza błąd certyfikatu przy uruchomieniu lokalnym:
 dotnet dev-certs https --clean
 dotnet dev-certs https --trust
 ```
+
+---
+
+## Zrzuty ekranu
+
+![Strona logowania](docs/screenshot-login.png)
